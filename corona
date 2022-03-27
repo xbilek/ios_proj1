@@ -1,0 +1,291 @@
+#!/bin/sh
+
+export POSIXLY_CORRECT=yes
+export LC_NUMERIC=en_US.UTF-8
+
+export LANG=en_US.utf8 
+
+print_help()
+{
+
+    echo "Usage: corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]"
+    echo ""
+    echo "COMMAND might be one of: "
+    echo "infected - counts the infected"
+    echo "merge - merges more files to one, keeping the oringinal order"
+    echo "genders - writes amount of infected for genders"
+    echo "daily - writes amounts of infected in particular days"
+    echo "monthly - writes amiounts of infected in particular months"
+    echo "yearly- writes amounts of infected in particular years"
+    echo "countries - writes amounts of infected in particular countries (without CZ)"
+    echo "districts - writes amounts of infected in particular districts"
+    echo "regions - writes amounts of infected in particular regions"
+    echo ""
+    echo "FILTERS might be combination of:"
+    echo "-a DATETIME - only records after DATETIME are procesed"
+    echo "-b DATETIME - only records before DATETIME are procesed"
+    echo "-g GENDER - only records of certain GENDER are processed"
+    echo "-s [WIDTH] - stats are written in ascii #"
+    echo ""
+    echo "-h prins help"
+}
+
+NUMBER_OF_LOGS=0
+WIDTH=0
+after=0
+before=0
+
+for var in "$@" ; do
+    if [ -e "$var" ] ; then
+        case "$var" in
+
+        *.csv )
+            NUMBER_OF_LOGS=$((NUMBER_OF_LOGS+1))
+            LOADING_LOG=$(cat "$var")
+            LOG="${LOG}$LOADING_LOG"
+            LOG=$(echo "$LOG" | awk 'NF')
+            ;;
+
+        *.gz )
+            NUMBER_OF_LOGS=$((NUMBER_OF_LOGS+1))
+            LOADING_LOG=$(gunzip -d -c "$var")
+            LOG="${LOG}$LOADING_LOG"
+            ;;
+        * )
+            echo "ERROR: Invalid input format!" 
+            exit 1
+            ;;
+        esac
+    fi
+done
+
+
+if [ "$1" = "-h" ] ; then print_help ; exit 0; fi                         #help
+if [ -z "$LOG" ]; then LOG=$(cat - | awk 'NF') ; fi                 #cat
+if [ "$#" -eq 0 ] ; then echo "$LOG" ; fi                           #bez argumentu
+
+
+
+#getting filter arguments TODO error handling
+while getopts ":a:b:g:s:h" opt; do
+    case ${opt} in
+    a)  #datetime after
+        LOG_AFTER=$(echo "$LOG" | awk -F ','  '$2 >= from' from="$OPTARG")
+        after=1
+        ;;
+    b) #datetime before
+        LOG_BEFORE=$(echo "$LOG" | awk -F ','  '$2 <= from' from="$OPTARG")
+        before=1
+        ;;
+    g) #gender  
+        FILTER_GENDER="$FILTER_GENDER
+$OPTARG"
+        ;;
+    s) #-s width 
+        WIDTH="$OPTARG"
+        ;;
+    h)
+        print_help
+        exit 0
+        ;;
+    :)
+        echo "$OPTARG"
+        ;;
+    *)
+        echo "ERROR wrong filter" >&2
+        exit 1
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+
+#aplying filters
+
+#datetime
+if [ "$after" = 1 ] && [ "$before" = 0 ] ; then
+    MERGED=$(echo "$LOG_AFTER" | sort )
+    LOG="$MERGED"
+elif [ "$before" = 1 ] && [ "$after" = 0 ] ; then
+    MERGED=$(echo "$LOG_BEFORE" | sort)
+    LOG="$MERGED"
+elif [ "$after" = 2 ]  && [ "$before" = 1 ] ; then
+    MERGED="$LOG_BEFORE
+$LOG_AFTER"
+    LOG=$(echo "$MERGED" | sort | uniq -d)
+fi
+
+#gender
+GENDER="$echo "$LOG" | awk -F ',' '{print $4}' | sort -u)"
+
+if [ -z "$FILTER_GENDER" ] ; then
+    GENDER=$GENDER
+else
+    GENDER=$(echo "$FILTER_GENDER" | sort | awk 'NF' )
+
+    for a in $GENDER ; do TMP="$TMP
+$(echo "$LOG" | grep -w "$a")"
+    done
+    LOG=$(echo "$TMP" | sort -k1)
+fi
+
+
+
+while [ "$#" -gt 0 ] ; do
+    case "$1" in
+    
+    infected)
+        INFECTED=$(echo "$LOG" | wc -l)
+        INFECTED=$((INFECTED-1))
+        printf " POCET nakazenych: %d \n" "$INFECTED"
+        shift
+        ;;
+    merge)
+        ;;
+    gender)
+        GENDER_VAR="$(echo "$LOG" | awk -F ',' '{print $4}')"
+        INFECTED_M=$(echo "$GENDER_VAR" | grep -c 'M')
+        INFECTED_Z=$(echo "$GENDER_VAR" | grep -c 'Z')
+        printf "M: %d \n" "$INFECTED_M"
+        printf "Z: %d \n" "$INFECTED_Z"
+        shift
+        ;;
+    age)                  ################TODO NONE###############################
+
+        AGE0=$(echo "$LOG" | awk -F ',' '($3>-1 && $3<6){ ++count } END{ print count }')
+        AGE6=$(echo "$LOG" | awk -F ',' '($3>5 && $3<16){ ++count } END{ print count }')
+        AGE16=$(echo "$LOG" | awk -F ',' '($3>15 && $3<26){ ++count } END{ print count }')
+        AGE26=$(echo "$LOG" | awk -F ',' '($3>25 && $3<36){ ++count } END{ print count }')
+        AGE36=$(echo "$LOG" | awk -F ',' '($3>35 && $3<46){ ++count } END{ print count }')
+        AGE46=$(echo "$LOG" | awk -F ',' '($3>45 && $3<56){ ++count } END{ print count }')
+        AGE56=$(echo "$LOG" | awk -F ',' '($3>55 && $3<66){ ++count } END{ print count }')
+        AGE66=$(echo "$LOG" | awk -F ',' '($3>65 && $3<76){ ++count } END{ print count }')
+        AGE76=$(echo "$LOG" | awk -F ',' '($3>75 && $3<86){ ++count } END{ print count }')
+        AGE86=$(echo "$LOG" | awk -F ',' '($3>85 && $3<96){ ++count } END{ print count }')
+        AGE96=$(echo "$LOG" | awk -F ',' '($3>95 && $3<105){ ++count } END{ print count }')
+        AGE105=$(echo "$LOG" | awk -F ',' '($3>104 &&$3<250){ ++count } END{ print count }')
+       
+
+        printf "0-5   : %d \n" "$AGE0"
+        printf "6-15  : %d \n" "$AGE6"
+        printf "16-25 : %d \n" "$AGE16"
+        printf "26-35 : %d \n" "$AGE26"
+        printf "36-45 : %d \n" "$AGE36"
+        printf "46-55 : %d \n" "$AGE46"
+        printf "56-65 : %d \n" "$AGE56"
+        printf "66-75 : %d \n" "$AGE66"
+        printf "76-85 : %d \n" "$AGE76"
+        printf "86-95 : %d \n" "$AGE86"
+        printf "96-105: %d \n" "$AGE96"
+        printf ">105  : %d \n" "$AGE105"        
+        shift
+        ;;
+    daily) # seradit podle datumu, zajimat se jen o 2. sloupec
+        DATE="$(echo "$LOG" | sort -t ',' -k 2,2 | awk -F ',' '{ print $2 }' )"
+        DAY="$(echo "$DATE" | awk 'NR==1 {print}')"
+        COUNTER=0
+        for a in $DATE
+        do
+            if [ "$a" = "$DAY" ] ; then 
+                COUNTER=$(($COUNTER+1))
+            else
+                printf "%s: %d \n" "$DAY" "$COUNTER";
+                DAY=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    monthly)
+        DATE="$(echo "$LOG" | sort -t ',' -k 2,2 | awk -F ',' '{ print $2 }' )"
+        DATE_M="$(echo "$DATE" | cut -d '-' -f -2)"
+        MONTH="$(echo "$DATE_M" | awk 'NR==1 {print}')"
+        COUNTER=0
+        for a in $DATE_M
+        do
+            if [ "$a" = "$MONTH" ] ; then 
+                COUNTER=$(($COUNTER+1))
+            else
+                printf "%s: %d \n" "$MONTH" "$COUNTER";
+                MONTH=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    yearly)
+        DATE="$(echo "$LOG" | sort -t ',' -k 2,2 | awk -F ',' '{ print $2 }' )"
+        DATE_Y="$(echo "$DATE" | cut -d '-' -f -1)"
+        YEAR="$(echo "$DATE_Y" | awk 'NR==1 {print}')"
+        COUNTER=0
+        for a in $DATE_Y
+        do
+            if [ "$a" = "$YEAR" ] ; then 
+                COUNTER=$(($COUNTER+1))
+            else
+                printf "%s: %d \n" "$YEAR" "$COUNTER";
+                YEAR=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    countries)
+        COUNTER=0
+        PLACE="$(echo "$LOG" | awk -F ',' '{ print $8 }')"
+        NOSPACES="$(echo "$PLACE" |  LC_COLLATE=C sort | awk 'NF')"
+        COUNTRY="$(echo "$NOSPACES" | awk 'NR==1 {print}')"
+        for a in $NOSPACES
+        do
+            if [ "$a" = "$COUNTRY" ] ; then
+                COUNTER=$(($COUNTER+1))
+            else 
+                printf "%s: %d \n" "$COUNTRY" "$COUNTER";
+                COUNTRY=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    districts)
+        COUNTER=0
+        PLACE="$(echo "$LOG" | awk -F ',' '{ print $6 }')"
+        NOSPACES="$(echo "$PLACE" |  LC_COLLATE=C sort | awk 'NF')"
+        DISTRICT="$(echo "$NOSPACES" | awk 'NR==1 {print}')"
+        for a in $NOSPACES
+        do
+            if [ "$a" = "$DISTRICT" ] ; then
+                COUNTER=$(($COUNTER+1))
+            else 
+                printf "%s: %d \n" "$DISTRICT" "$COUNTER";
+                DISTRICT=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    regions)
+        COUNTER=0
+        PLACE="$(echo "$LOG" | awk -F ',' '{ print $5 }')"
+        NOSPACES="$(echo "$PLACE" |  LC_COLLATE=C sort | awk 'NF')"
+        REGION="$(echo "$NOSPACES" | awk 'NR==1 {print}')"
+        for a in $NOSPACES
+        do
+            if [ "$a" = "$REGION" ] ; then
+                COUNTER=$(($COUNTER+1))
+            else 
+                printf "%s: %d \n" "$REGION" "$COUNTER";
+                REGION=$a
+                COUNTER=1
+            fi
+        done
+        shift
+        ;;
+    *)
+        echo "$LOG" | awk 'NF'
+        ;;
+    esac
+
+shift "$NUMBER_OF_LOGS"
+done
+    
